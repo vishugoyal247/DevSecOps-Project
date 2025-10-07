@@ -1,0 +1,61 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: proxy
+  namespace: sdo
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: proxy
+  template:
+    metadata:
+      labels:
+        app: proxy
+    spec:
+      containers:
+      - name: proxy
+        image: proxy:latest
+        imagePullPolicy: Never
+        ports:
+          - containerPort: 80
+          - containerPort: 443
+        volumeMounts:
+          - name: nginx-config
+            mountPath: /etc/nginx/nginx.conf
+            subPath: nginx.conf
+          - name: ssl-certs
+            mountPath: /etc/ssl/certs/localhost.crt
+            subPath: tls.crt
+          - name: ssl-keys
+            mountPath: /etc/ssl/private/localhost.key
+            subPath: tls.key
+      volumes:
+        - name: nginx-config
+          configMap:
+            name: nginx-config
+        - name: ssl-certs
+          secret:
+            secretName: tls-secret
+        - name: ssl-keys
+          secret:
+            secretName: tls-secret
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: proxy
+  namespace: sdo
+spec:
+  selector:
+    app: proxy
+  type: NodePort
+  ports:
+    - name: http
+      port: 80
+      targetPort: 80
+      nodePort: 30080
+    - name: https
+      port: 443
+      targetPort: 443
+      nodePort: 30443

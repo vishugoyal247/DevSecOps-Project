@@ -1,0 +1,15 @@
+# ---- Build React client ----
+FROM node:20-alpine AS client-build
+WORKDIR /app
+COPY client/package*.json ./client/
+RUN cd client && npm ci
+COPY client ./client
+RUN cd client && npm run build
+
+# ---- Nginx runtime (serves client build + proxies API) ----
+FROM nginx:stable-alpine
+# Your nginx.conf must define root /usr/share/nginx/html and /api proxy
+COPY nginx.conf /etc/nginx/nginx.conf
+# Copy the built client into nginx's web root
+COPY --from=client-build /app/client/build /usr/share/nginx/html
+# TLS cert/key will still be mounted by compose

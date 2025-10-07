@@ -1,0 +1,79 @@
+version: "3.9"
+
+services:
+  app:
+    container_name: app
+    build: .
+    env_file: .env
+    working_dir: /app/server
+    command: ["npm","start"]
+    depends_on:
+      - mongo
+    restart: unless-stopped
+    expose:
+      - "3000"
+    networks: [backend, frontend]
+
+  mongo:
+    container_name: mongo
+    image: mongo:6
+    restart: unless-stopped
+    environment:
+      - MONGO_INITDB_ROOT_USERNAME=${MONGO_INITDB_ROOT_USERNAME}
+      - MONGO_INITDB_ROOT_PASSWORD=${MONGO_INITDB_ROOT_PASSWORD}
+    volumes:
+      - mongodata:/data/db
+    networks: [backend]
+
+  mongo-express:
+    container_name: mongo-express
+    image: mongo-express:1
+    restart: unless-stopped
+    environment:
+      - ME_CONFIG_MONGODB_ADMINUSERNAME=${MONGO_INITDB_ROOT_USERNAME}
+      - ME_CONFIG_MONGODB_ADMINPASSWORD=${MONGO_INITDB_ROOT_PASSWORD}
+      - ME_CONFIG_MONGODB_SERVER=mongo
+      - ME_CONFIG_BASICAUTH=false
+    depends_on:
+      - mongo
+    networks: [backend]
+
+  proxy:
+    container_name: proxy
+    image: nginx:stable-alpine
+    depends_on:
+      - app
+      - client-build
+    ports:
+      - "80:80"
+      - "443:443"
+      - "8081:8081"
+    volumes:
+      - ./nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./ssl/localhost.crt:/etc/ssl/certs/localhost.crt:ro
+      - ./ssl/localhost.key:/etc/ssl/private/localhost.key:ro
+      - clientbuild:/usr/share/nginx/html:ro
+      - ./nginx_html:/usr/share/nginx/html:ro
+    networks: [frontend, backend]
+
+  client-build:
+    image: node:20-alpine
+    working_dir: /src
+    volumes:
+      - ./:/src
+      - clientbuild:/out
+    command: >
+      sh -lc "cd client &&
+              npm ci &&
+              REACT_APP_API_URL=/api npm run build &&
+              rm -rf /out/* &&
+              cp -R build/* /out/"
+    networks: [frontend]
+
+volumes:
+  mongodata:
+  clientbuild:
+
+networks:
+  backend:
+  frontend:
